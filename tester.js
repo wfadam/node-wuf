@@ -1,5 +1,8 @@
 const { spawnSync } = require('child_process');
 const { back } = require('./log.js');
+
+const isAsciiSoc = socFile => callSync('file', socFile).includes('ASCII');
+
 const model = () => process.env['ATFSTMODEL'] || process.env['ATKEITMODEL'];
 const t31api = {
 	pwd         : ['fspwd'],
@@ -38,11 +41,20 @@ Object.keys(tapi).forEach(key => {
 		case 'sysvar':
 			openAPI[key] = (keyVals) => __setSysVar(...tapi[key], ...keyVals);
 			break;
+		case 'socket':
+			openAPI[key] = (...vals) => {
+				const socVal = (model() === 'T5773' && isAsciiSoc(...vals))
+					? [callSync('cat', ...vals).trim()]
+					: vals;
+				callSync(...tapi[key], ...socVal);
+			};
+			break;
 		default:
 			openAPI[key] = (...vals) => callSync(...tapi[key], ...vals);
 			break;
 	}
 });
+
 
 function callSync(cmd, ...args) {
 	const proc = spawnSync(cmd, args);

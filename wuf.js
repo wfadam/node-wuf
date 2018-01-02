@@ -54,7 +54,7 @@ function enableLog(dir, flow, tpFullName) {
 }
 
 function setFlow(flow) {
-	tester.sysvar([['ECOTS_SD_STEP', flow], ['ECOTS_SD_RESCREEN', 0]]);
+	tester.sysvar([['ECOTS_SD_STEP', flow], ['ECOTS_SD_RESCREEN', 0], ['ECOTS_SD_DATALOGDISP', 'ON']]);
 }
 
 function tpName(dir) {
