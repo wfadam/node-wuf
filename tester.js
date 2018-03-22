@@ -1,7 +1,8 @@
-const { spawnSync } = require('child_process');
-const { back } = require('./log.js');
+const { spawn, spawnSync } = require('child_process');
+const { back, backRTE } = require('./log.js');
 
 const isAsciiSoc = socFile => callSync('file', socFile).includes('ASCII');
+const log = require('./log.js');
 
 const model = () => process.env['ATFSTMODEL'] || process.env['ATKEITMODEL'];
 const t31api = {
@@ -14,10 +15,11 @@ const t31api = {
 	clear       : ['fsclear'],
 	logstart    : ['fssplogstart'],
 	errlogstart : ['fserrlogstart'],
-	log         : ['fslog', '--dc', 'on'],
+	log         : ['fslog', '--dc', 'on', '--func', 'off'],
 	socket      : ['fsconf', '--socket-file'],
 	prostart    : ['fsprostart'],
 	sysvar      : ['fssymbol'],
+	userproreset: ['fssetuserpro', '--clear'],
 };
 const t73api = {
 	pwd         : ['kpwd'],
@@ -29,10 +31,11 @@ const t73api = {
 	clear       : ['kclear'],
 	logstart    : ['ksplogstart'],
 	errlogstart : ['kerrlogstart'],
-	log         : ['klog', '--dc', 'on'],
+	log         : ['klog', '--dc', 'on', '--func', 'off'],
 	socket      : ['kselectsocket'],
 	prostart    : ['kprostart'],
 	sysvar      : ['ksystemvariable'],
+	userproreset: ['ksetuserpro', '--clear'],
 };
 const tapi = model() === 'T5831' ? t31api : t73api;
 const openAPI = {};
@@ -54,7 +57,7 @@ Object.keys(tapi).forEach(key => {
 			break;
 	}
 });
-
+openAPI['sysid'] = () => model() === 'T5773' ? getSysIdT73() : getSysIdT31();
 
 function callSync(cmd, ...args) {
 	const proc = spawnSync(cmd, args);
@@ -67,7 +70,7 @@ function callSync(cmd, ...args) {
 		proc.stdout.toString()].join('\n');
 	const err = new Error(msg);
 	back(err.stack);
-	throw err;
+	throw new Error(proc.status);
 }
 
 function __setSysVar (cmd, ...keyVals) {
@@ -76,6 +79,32 @@ function __setSysVar (cmd, ...keyVals) {
 	if(flat.length === 0) return '';
 	return callSync(cmd, ...flat);
 }
+
+async function getSysIdT73() {
+	return new Promise(resolve => {
+		const proc = spawn('oUTD_system_configuration');
+		proc.stdout.on('data', data => {
+			const lines = data.toString().split('\n').filter(line => line.match(/(MACHINE|SYSTEM) NAME .*= .*/));
+			if(lines.length === 0) return;
+			resolve(lines.map(msg => msg.split('=')[1].trim()).join('|'));
+			proc.kill('SIGINT');
+		});
+	});
+}
+
+async function getSysIdT31() {
+	return new Promise(resolve => {
+		const proc = spawn('oUTD_SystemConf');
+		proc.stdout.on('data', data => {
+			const lines = data.toString().split('\n').filter(line => line.match(/(PRODUCT TYPE|MACHINE NAME) .*: .*/));
+			if(lines.length === 0) return;
+			resolve(lines.map(msg => msg.split(':')[1].trim()).join('|'));
+			proc.kill('SIGINT');
+		});
+		proc.stdin.write('1\nR\nQ\n');
+	});
+}
+
 
 Object.assign(module.exports, openAPI);
 module.exports.model = model;

@@ -4,8 +4,8 @@ process.on('uncaughtException', (reason, p) => console.log(reason));
 const path = require('path');
 const tester = require('./tester.js');
 const logDir = 'datalogs/';
-const lastLine = msg => msg ? `${msg.trim().split('\n').splice(-1)}` : '';
-const { back } = require('./log.js');
+const { back, backRTE, cntr } = require('./log.js');
+const log = require('./log.js');
 
 const banner = `
 
@@ -18,8 +18,9 @@ const banner = `
 `;
 
 function checkTesterAvail() {
-  const msg = tester.isTesting() ? `Tester is already running ${lastLine(tester.pwd())}` :
-              tester.isOff()     ? `Please ${tester.model() === 'T5831' ? 'startfs' : 'startk'}` : '';
+	const lastLine = msg => msg ? `${msg.trim().split('\n').splice(-1)}` : '';
+	const msg = tester.isOff()     ? `Please ${tester.model() === 'T5831' ? 'startfs' : 'startk'}` :
+							tester.isTesting() ? `Tester is already running ${lastLine(tester.pwd())}` : '';
 	if(! msg) return;
 	console.log(`${msg}\nQuit`);
 	process.exit(1);
@@ -28,11 +29,12 @@ function checkTesterAvail() {
 function parseArgs() {
 	const cmL = process.argv;
 	const toUpper = flow => flow.match(/^debug$/i) ? 'Debug' : flow.toUpperCase();
-	const isFlow = flow => flow.match(/^[\w]{2,3}$/) || flow.match(/^debug$/i);
+	const isFlow = flow => flow.match(/^[a-z]{2,3}$/i) || flow.match(/^debug$/i);
 	const flows = cmL.filter(opt => isFlow(opt)).map(flow => toUpper(flow));
 	const [tpZip] = cmL.filter(opt => opt.match(/^.*_tp.zip$/));
 	const keyVals = cmL.filter(opt => opt.match(/^ECOTS_.*=\w*$/)).map(kv => kv.split('='));
-	return {flows, tpZip, keyVals};
+	const logName = cmL.filter(opt => ! opt.match(/^debug$/i) && opt.match(/^[_\w]{4,}$/i));
+	return {flows, tpZip, keyVals, logName};
 }
 
 function setupCPNL(tXXXXXX, tpFullName) {
@@ -46,11 +48,18 @@ function setupCPNL(tXXXXXX, tpFullName) {
   tester.socket(socFileName);
 }
 
-function enableLog(dir, flow, tpFullName) {
+function enableLog(dir, flow, tpFullName, logName) {
 	tester.callSync('mkdir', '-p', dir);
 	const timeStr = new Date().toString().replace(/ (20\d\d) /, '_').replace(/ GMT.*$/, '').replace(/[ :]/g, '');
-	tester.logstart(dir, `${flow}_${tpFullName}_${timeStr}`);
+	tester.log();
+	if(logName.length === 0){
+		tester.logstart(dir, `${flow}_${tpFullName}`);
+	}else {
+		tester.logstart(dir, `${logName}`);
+	}
 	tester.errlogstart(dir, `.${flow}_${tpFullName}_${timeStr}`);
+	const baseName = `${process.env.PWD}/${dir}/.${flow}_${tpFullName}_${timeStr}`;
+	backRTE(baseName, 'RTE', 'System-err', 'S0001-err', 'S0005-err');
 }
 
 function setFlow(flow) {
@@ -77,7 +86,7 @@ function sync() {
 
 	console.log(`Syncing to ${dstDir}`);
 	tester.callSync('mkdir', '-p', dstDir);
-	tester.callSync('rsync', '-az', '--delete', '--force', '--exclude=*.5831', '--exclude=*.5773', '--exclude=*.t5831', '--exclude=*.t5773', '--exclude=saveflows/', '--exclude=datalogs/', '--exclude=*.java', '--exclude=*.asc', '--exclude=*.prep', '--exclude=.svn/', srcDir, path.dirname(dstDir));
+	tester.callSync('rsync', '-az', '--delete', '--force', '--exclude=*5831', '--exclude=*5773', '--exclude=saveflows/', '--exclude=datalogs/', '--exclude=*.java', '--exclude=*.asc', '--exclude=*.prep', '--exclude=.svn/', srcDir, path.dirname(dstDir));
 	return dstDir;
 }
 
@@ -91,8 +100,9 @@ async function extract(tpZip) {
 }
 
 async function run() {
+	cntr();
 	await back();
-	const {flows, tpZip, keyVals} = parseArgs();
+	const {flows, tpZip, keyVals, logName} = parseArgs();
 	const dstDir = tpZip ? await extract(tpZip) : sync();
 	const tpFullName = tpName(dstDir);
 
@@ -100,12 +110,17 @@ async function run() {
 	setupCPNL(dstDir, tpFullName);
 	console.log(tester.sysvar(keyVals));
 	for(let flow of flows) {
+		console.log(`Running ${flow}`);
 		tester.proreset();
+		tester.userproreset();
 		tester.clear();
 		setFlow(flow);
-		enableLog(logDir, flow, tpFullName);
+		enableLog(logDir, flow, tpFullName, logName);
 		tester.prostart();
 	}
+
+	console.log('TESTEND');
+	process.exit(0);
 }
 
 /************************** Execution starts here *****************************/
