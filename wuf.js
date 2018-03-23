@@ -53,7 +53,7 @@ function enableLog(dir, flow, tpFullName, logName) {
 	const timeStr = new Date().toString().replace(/ (20\d\d) /, '_').replace(/ GMT.*$/, '').replace(/[ :]/g, '');
 	tester.log();
 	if(logName.length === 0){
-		tester.logstart(dir, `${flow}_${tpFullName}`);
+		tester.logstart(dir, `${flow}_${tpFullName}_${timeStr}`);
 	}else {
 		tester.logstart(dir, `${logName}`);
 	}
