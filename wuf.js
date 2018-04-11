@@ -32,7 +32,7 @@ function parseArgs() {
 	const isFlow = flow => flow.match(/^[a-z]{2,3}$/i) || flow.match(/^debug$/i);
 	const flows = cmL.filter(opt => isFlow(opt)).map(flow => toUpper(flow));
 	const [tpZip] = cmL.filter(opt => opt.match(/^.*_tp.zip$/));
-	const keyVals = cmL.filter(opt => opt.match(/^ECOTS_.*=\w*$/)).map(kv => kv.split('='));
+	const keyVals = cmL.filter(opt => opt.match(/^ECOTS_.*=/)).map(kv => kv.split('='));
 	const logName = cmL.filter(opt => ! opt.match(/^debug$/i) && opt.match(/^[_\w]{4,}$/i));
 	return {flows, tpZip, keyVals, logName};
 }
@@ -53,7 +53,7 @@ function enableLog(dir, flow, tpFullName, logName) {
 	const timeStr = new Date().toString().replace(/ (20\d\d) /, '_').replace(/ GMT.*$/, '').replace(/[ :]/g, '');
 	tester.log();
 	if(logName.length === 0){
-		tester.logstart(dir, `${flow}_${tpFullName}_${timeStr}`);
+		tester.logstart(dir, `${flow}_${tpFullName}_${timeStr}`);//for unique if same log name used
 	}else {
 		tester.logstart(dir, `${logName}`);
 	}
